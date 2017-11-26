@@ -93,8 +93,8 @@ test_pipeline(train_df, tfidf_pipe, "TF/IDF")
 # generate output file
 test_df = pd.read_csv("test.csv")
 
-predictions = unigram_pipe.predict_proba(test_df["text"])
+predictions = unigram_log_pipe.predict_proba(test_df["text"])
 
-output = pd.DataFrame(predictions, columns = unigram_pipe.classes_)
+output = pd.DataFrame(predictions, columns=unigram_pipe.classes_)
 output["id"] = test_df["id"]
 output.to_csv("output.csv", index=False)
