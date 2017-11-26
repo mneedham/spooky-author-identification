@@ -1,9 +1,12 @@
+import string
+
 import numpy as np
 import pandas as pd
 from sklearn import linear_model
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn import metrics
+from sklearn.base import TransformerMixin
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import MultinomialNB
 
 np.set_printoptions(suppress=True)
@@ -25,39 +28,73 @@ def test_pipeline(df, nlp_pipeline, pipeline_name=''):
         nlp_pipeline.fit(X_train, y_train)
         losses.append(metrics.log_loss(y_test, nlp_pipeline.predict_proba(X_test)))
     print(f'{pipeline_name} kfolds log losses: {str([str(round(x, 3)) for x in sorted(losses)])}')
-    print(f'{pipeline_name} mean log loss: {round(pd.np.mean(losses), 3)}')
+    print(f'{pipeline_name} mean log loss: {round(np.mean(losses), 3)}')
+
+
+def remove_punctuation(text):
+    for punct in string.punctuation:
+        text = text.replace(punct, '')
+    return text
+
 
 train_df = pd.read_csv("train.csv", usecols=[Y_COLUMN, TEXT_COLUMN])
-X = train_df["text"]
-y = train_df["author"]
 
 tfidf_pipe = Pipeline([
     ('tfidf', TfidfVectorizer(max_df=0.95, min_df=2, max_features=1500, stop_words='english')),
     ('mnb', MultinomialNB())
-                        ])
-test_pipeline(train_df, tfidf_pipe, "TF/IDF")
+])
 
 unigram_pipe = Pipeline([
     ('cv', CountVectorizer()),
     ('mnb', MultinomialNB())
-                        ])
-test_pipeline(train_df, unigram_pipe, "Unigrams only")
+])
+
+ngram_pipe = Pipeline([
+    ('cv', CountVectorizer(ngram_range=(1, 3))),
+    ('mnb', MultinomialNB())
+])
 
 unigram_log_pipe = Pipeline([
     ('cv', CountVectorizer()),
-    ('mnb', linear_model.LogisticRegression(C=1e5))
-                        ])
-test_pipeline(train_df, unigram_pipe, "Unigrams (log reg) only")
-
-# predictions = model.predict_proba(test_df["text"])
-
-# scores = cross_val_score(model, X, y, cv=10, scoring='neg_log_loss')
-# print(scores.mean())
+    ('logreg', linear_model.LogisticRegression(C=1e5))
+])
 
 
-# output = test_df.copy()
-# output["EAP"] = pd.Series([pred[0] for pred in predictions])
-# output["HPL"] = pd.Series([pred[1] for pred in predictions])
-# output["MWS"] = pd.Series([pred[2] for pred in predictions])
-#
-# output.to_csv("output.csv", columns=["id", "EAP", "HPL", "MWS"], index=False)
+class TextCleaner(TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, df):
+        df = df.apply(remove_punctuation)
+        return df
+
+
+unigram_clean_pipe = Pipeline([
+    ("clean", TextCleaner()),
+    ('cv', CountVectorizer()),
+    ('mnb', MultinomialNB())
+])
+
+# test_pipeline(train_df, tfidf_pipe, "TF/IDF")
+# test_pipeline(train_df, unigram_pipe, "Unigrams only")
+# test_pipeline(train_df, unigram_pipe, "Unigrams (log reg) only")
+# test_pipeline(train_df, ngram_pipe, "N-grams")
+
+train_df_clean = train_df.copy()
+train_df_clean["text"] = train_df_clean["text"].apply(remove_punctuation)
+
+test_pipeline(train_df_clean, unigram_pipe, "Unigrams only (no punc)")
+test_pipeline(train_df, unigram_clean_pipe, "Unigrams only (no punc pipeline)")
+test_pipeline(train_df, unigram_pipe, "Unigrams only")
+
+# generate output file
+test_df = pd.read_csv("test.csv")
+
+predictions = unigram_pipe.predict_proba(test_df["text"])
+
+output = test_df.copy()
+output["EAP"] = predictions[:, 0]
+output["HPL"] = predictions[:, 1]
+output["MWS"] = predictions[:, 2]
+
+output.to_csv("output.csv", columns=["id", "EAP", "HPL", "MWS"], index=False)
