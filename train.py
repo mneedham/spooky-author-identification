@@ -22,19 +22,20 @@ def test_pipeline(df, nlp_pipeline, pipeline_name=''):
     X = pd.Series(df[TEXT_COLUMN])
     rskf = StratifiedKFold(n_splits=5, random_state=1)
     losses = []
+    accuracies = []
     for train_index, test_index in rskf.split(X, y):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
         nlp_pipeline.fit(X_train, y_train)
         losses.append(metrics.log_loss(y_test, nlp_pipeline.predict_proba(X_test)))
-    print(f'{pipeline_name} kfolds log losses: {str([str(round(x, 3)) for x in sorted(losses)])}')
-    print(f'{pipeline_name} mean log loss: {round(np.mean(losses), 3)}')
+        accuracies.append(metrics.accuracy_score(y_test, nlp_pipeline.predict(X_test)))
 
-
-def remove_punctuation(text):
-    for punct in string.punctuation:
-        text = text.replace(punct, '')
-    return text
+    print("{0: <40} kfolds log losses: {1: <50}  mean log loss: {2} mean accuracy: {3}".format(
+        pipeline_name,
+        str([str(round(x, 3)) for x in sorted(losses)]),
+        round(np.mean(losses), 3),
+        round(np.mean(accuracies), 3)
+    ))
 
 
 train_df = pd.read_csv("train.csv", usecols=[Y_COLUMN, TEXT_COLUMN])
@@ -56,7 +57,7 @@ ngram_pipe = Pipeline([
 
 unigram_log_pipe = Pipeline([
     ('cv', CountVectorizer()),
-    ('logreg', linear_model.LogisticRegression(C=1e5))
+    ('logreg', linear_model.LogisticRegression())
 ])
 
 
@@ -65,8 +66,14 @@ class TextCleaner(TransformerMixin):
         return self
 
     def transform(self, df):
-        df = df.apply(remove_punctuation)
+        df = df.apply(self.remove_punctuation)
         return df
+
+    @staticmethod
+    def remove_punctuation(text):
+        for punct in string.punctuation:
+            text = text.replace(punct, '')
+        return text
 
 
 unigram_clean_pipe = Pipeline([
@@ -75,26 +82,19 @@ unigram_clean_pipe = Pipeline([
     ('mnb', MultinomialNB())
 ])
 
-# test_pipeline(train_df, tfidf_pipe, "TF/IDF")
-# test_pipeline(train_df, unigram_pipe, "Unigrams only")
-# test_pipeline(train_df, unigram_pipe, "Unigrams (log reg) only")
-# test_pipeline(train_df, ngram_pipe, "N-grams")
 
-train_df_clean = train_df.copy()
-train_df_clean["text"] = train_df_clean["text"].apply(remove_punctuation)
-
-test_pipeline(train_df_clean, unigram_pipe, "Unigrams only (no punc)")
 test_pipeline(train_df, unigram_clean_pipe, "Unigrams only (no punc pipeline)")
 test_pipeline(train_df, unigram_pipe, "Unigrams only")
+test_pipeline(train_df, unigram_log_pipe, "Unigrams (log reg) only")
+test_pipeline(train_df, ngram_pipe, "N-grams")
+test_pipeline(train_df, tfidf_pipe, "TF/IDF")
+
 
 # generate output file
 test_df = pd.read_csv("test.csv")
 
 predictions = unigram_pipe.predict_proba(test_df["text"])
 
-output = test_df.copy()
-output["EAP"] = predictions[:, 0]
-output["HPL"] = predictions[:, 1]
-output["MWS"] = predictions[:, 2]
-
-output.to_csv("output.csv", columns=["id", "EAP", "HPL", "MWS"], index=False)
+output = pd.DataFrame(predictions, columns = unigram_pipe.classes_)
+output["id"] = test_df["id"]
+output.to_csv("output.csv", index=False)
