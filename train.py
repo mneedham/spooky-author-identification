@@ -9,6 +9,7 @@ from sklearn.ensemble import VotingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import MultinomialNB
+from polyglot.text import Text
 
 import nltk
 from collections import Counter, defaultdict
@@ -136,11 +137,25 @@ pos_pipe = Pipeline([
     ("logreg", linear_model.LogisticRegression())
 ])
 
+entities = {}
+
+
+def analyze(doc):
+    if doc not in entities:
+        entities[doc] = ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
+    return entities[doc]
+
+nlp_pipeline = Pipeline([
+    ('cv', CountVectorizer(analyzer=analyze)),
+    ('mnb', MultinomialNB())
+])
+
 mixed_pipe = Pipeline([
     ("voting", VotingClassifier([
         ("tfidf", tfidf_pipe),
         ("ngram", ngram_pipe),
-        ("unigram", unigram_log_pipe)
+        ("unigram", unigram_log_pipe),
+        ("nlp", nlp_pipeline)
     ], voting="soft"))
 ])
 

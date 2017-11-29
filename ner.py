@@ -1,12 +1,10 @@
-import pandas as pd
-import numpy as np
-import scipy.sparse as sp
-import array
-
-from polyglot.text import Text
 from collections import defaultdict
 
+import numpy as np
+import pandas as pd
+from polyglot.text import Text
 from sklearn import metrics
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
@@ -16,48 +14,27 @@ vocabulary.default_factory = vocabulary.__len__
 
 df = pd.read_csv("train.csv")
 
-j_indices = []
-indptr = array.array(str("i"))
-values = array.array(str("i"))
-indptr.append(0)
+entities = {}
 
 
 def analyze(doc):
-    return ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
+    if doc not in entities:
+        entities[doc] = ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
+    return entities[doc]
 
-raw_documents = df.text
-for doc in raw_documents:
-    feature_counter = {}
-    for feature in analyze(doc):
-        feature_idx = vocabulary[feature]
-        if feature_idx not in feature_counter:
-            feature_counter[feature_idx] = 1
-        else:
-            feature_counter[feature_idx] += 1
-
-    j_indices.extend(feature_counter.keys())
-    values.extend(feature_counter.values())
-    indptr.append(len(j_indices))
-
-j_indices = np.asarray(j_indices, dtype=np.intc)
-indptr = np.frombuffer(indptr, dtype=np.intc)
-values = np.frombuffer(values, dtype=np.intc)
-
-vocabulary = dict(vocabulary)
-X = sp.csr_matrix((values, j_indices, indptr),
-                  shape=(len(indptr) - 1, len(vocabulary)),
-                  dtype=np.int64)
-
-np.set_printoptions(threshold=np.nan)
 
 Y_COLUMN = "author"
 TEXT_COLUMN = "text"
 
-nlp_pipeline = MultinomialNB()
+nlp_pipeline = Pipeline([
+    ('cv', CountVectorizer(analyzer=lambda doc: analyze(doc))),
+    ('mnb', MultinomialNB())
+])
+
 pipeline_name = "entity_extraction"
 
 y = df[Y_COLUMN].copy()
-# X = pd.Series(df[TEXT_COLUMN])
+X = pd.Series(df[TEXT_COLUMN])
 rskf = StratifiedKFold(n_splits=5, random_state=1)
 losses = []
 accuracies = []
@@ -74,8 +51,3 @@ print("{0: <40} kfolds log losses: {1: <50}  mean log loss: {2} mean accuracy: {
     round(np.mean(losses), 3),
     round(np.mean(accuracies), 3)
 ))
-
-
-
-
-
