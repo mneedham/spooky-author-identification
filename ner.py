@@ -21,14 +21,15 @@ indptr = array.array(str("i"))
 values = array.array(str("i"))
 indptr.append(0)
 
-for t in df.text:
+
+def analyze(doc):
+    return ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
+
+raw_documents = df.text
+for doc in raw_documents:
     feature_counter = {}
-    entities = Text(t, hint_language_code="en").entities
-
-    for entity in entities:
-        feature = "_".join(entity)
+    for feature in analyze(doc):
         feature_idx = vocabulary[feature]
-
         if feature_idx not in feature_counter:
             feature_counter[feature_idx] = 1
         else:
