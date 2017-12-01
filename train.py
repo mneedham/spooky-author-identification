@@ -1,102 +1,17 @@
-import string
-
 import numpy as np
 import pandas as pd
+from polyglot.text import Text
 from sklearn import linear_model
-from sklearn import metrics
-from sklearn.base import TransformerMixin
 from sklearn.ensemble import VotingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.model_selection import StratifiedKFold
 from sklearn.naive_bayes import MultinomialNB
-from polyglot.text import Text
-
-import nltk
-from collections import Counter, defaultdict
 
 np.set_printoptions(suppress=True)
 
 from sklearn.pipeline import Pipeline
 
-
-class TextCleaner(TransformerMixin):
-    def fit(self, x, y=None):
-        return self
-
-    def transform(self, df):
-        df = df.apply(self.remove_punctuation)
-        return df
-
-    @staticmethod
-    def remove_punctuation(text):
-        for punct in string.punctuation:
-            text = text.replace(punct, '')
-        return text
-
-
-class PoSScanner(TransformerMixin):
-    @staticmethod
-    def count_pos(pos_to_count, text):
-        c = Counter()
-        for term, pos in nltk.pos_tag(nltk.word_tokenize(text)):
-            c[pos] += 1
-        return float(c[pos_to_count])
-
-    def fit(self, x, y=None):
-        return self
-
-    def transform(self, text_series):
-        df = pd.DataFrame(text_series)
-
-        new_columns = defaultdict(list)
-        for text in text_series:
-            c = Counter()
-            for term, pos in nltk.pos_tag(nltk.word_tokenize(text)):
-                c[pos] += 1
-
-            for pos in ["NN", "VB", "VBG", "UH", "RBR", "RBS", "PRP", "NNS", "NNP", "JJS", "IN", "CC"]:
-                new_columns[pos].append(c[pos])
-
-        for pos in new_columns.keys():
-            df["{0}_count".format(pos)] = new_columns[pos]
-
-        return df
-
-
-class DropStringColumns(TransformerMixin):
-    def fit(self, x, y=None):
-        return self
-
-    def transform(self, df):
-        for col, dtype in zip(df.columns, df.dtypes):
-            if dtype == object:
-                del df[col]
-        return df
-
-
-Y_COLUMN = "author"
-TEXT_COLUMN = "text"
-
-
-def test_pipeline(df, nlp_pipeline, pipeline_name=''):
-    y = df[Y_COLUMN].copy()
-    X = pd.Series(df[TEXT_COLUMN])
-    rskf = StratifiedKFold(n_splits=5, random_state=1)
-    losses = []
-    accuracies = []
-    for train_index, test_index in rskf.split(X, y):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
-        nlp_pipeline.fit(X_train, y_train)
-        losses.append(metrics.log_loss(y_test, nlp_pipeline.predict_proba(X_test)))
-        accuracies.append(metrics.accuracy_score(y_test, nlp_pipeline.predict(X_test)))
-
-    print("{0: <40} kfolds log losses: {1: <50}  mean log loss: {2} mean accuracy: {3}".format(
-        pipeline_name,
-        str([str(round(x, 3)) for x in sorted(losses)]),
-        round(np.mean(losses), 3),
-        round(np.mean(accuracies), 3)
-    ))
+from util.testing import test_pipeline, Y_COLUMN, TEXT_COLUMN
+from util.transformers import TextCleaner,PoSScanner,DropStringColumns
 
 
 train_df = pd.read_csv("train.csv", usecols=[Y_COLUMN, TEXT_COLUMN])
@@ -145,6 +60,7 @@ def analyze(doc):
         entities[doc] = ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
     return entities[doc]
 
+
 nlp_pipeline = Pipeline([
     ('cv', CountVectorizer(analyzer=analyze)),
     ('mnb', MultinomialNB())
@@ -155,7 +71,7 @@ mixed_pipe = Pipeline([
         ("tfidf", tfidf_pipe),
         ("ngram", ngram_pipe),
         ("unigram", unigram_log_pipe),
-        ("nlp", nlp_pipeline)
+        # ("nlp", nlp_pipeline)
     ], voting="soft"))
 ])
 
@@ -167,7 +83,6 @@ mixed_pipe = Pipeline([
 # test_pipeline(train_df, ngram_pipe, "N-grams")
 # test_pipeline(train_df, tfidf_pipe, "TF/IDF")
 test_pipeline(train_df, mixed_pipe, "Mixed")
-
 
 # generate output file
 test_df = pd.read_csv("test.csv")
