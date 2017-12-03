@@ -2,7 +2,9 @@ import string
 from collections import Counter, defaultdict
 
 import nltk
+import numpy as np
 import pandas as pd
+from nltk.corpus import stopwords
 from sklearn.base import TransformerMixin
 
 
@@ -59,3 +61,61 @@ class DropStringColumns(TransformerMixin):
             if dtype == object:
                 del df[col]
         return df
+
+
+# Number of words in the text
+# Number of unique words in the text
+# Number of characters in the text
+# Number of stopwords
+# Number of punctuations
+# Number of upper case words
+# Number of title case words
+# Average length of the words
+
+
+eng_stopwords = set(stopwords.words("english"))
+
+
+class MetaFeatures(TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, text_series):
+        df = pd.DataFrame(text_series)
+        df["num_words"] = text_series.apply(self.num_words)
+        df["unique_words"] = text_series.apply(self.num_unique_words)
+        df["num_characters"] = text_series.apply(self.num_chars)
+        df["num_stopwords"] = text_series.apply(self.num_stopwords)
+        df["num_words_title"] = text_series.apply(self.num_title_words)
+        df["num_punctuation"] = text_series.apply(self.num_punctuation)
+        df["ave_word_length"] = text_series.apply(self.ave_word_length)
+
+        return df
+
+    @staticmethod
+    def num_words(sentence):
+        return len(str(sentence).split())
+
+    @staticmethod
+    def num_unique_words(sentence):
+        return len(set(str(sentence).split()))
+
+    @staticmethod
+    def ave_word_length(sentence):
+        return np.mean([len(w) for w in str(sentence).split()])
+
+    @staticmethod
+    def num_punctuation(sentence):
+        return len([c for c in str(sentence) if c in string.punctuation])
+
+    @staticmethod
+    def num_chars(sentence):
+        return len(sentence)
+
+    @staticmethod
+    def num_title_words(sentence):
+        return len([w for w in str(sentence).split() if w.istitle()])
+
+    @staticmethod
+    def num_stopwords(sentence):
+        return len([w for w in str(sentence).lower().split() if w in eng_stopwords])
