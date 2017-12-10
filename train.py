@@ -1,19 +1,15 @@
-from pprint import pprint
-from time import time
-
 import numpy as np
 import pandas as pd
 from polyglot.text import Text
 from sklearn import linear_model
 from sklearn.ensemble import VotingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.model_selection import GridSearchCV
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 
+from util.output import generate_output_file
 from util.testing import test_pipeline, Y_COLUMN, TEXT_COLUMN
 from util.transformers import TextCleaner, PoSScanner, DropStringColumns
-from util.output import generate_output_file
 
 np.set_printoptions(suppress=True)
 

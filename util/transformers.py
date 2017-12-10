@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 import nltk
 import numpy as np
 import pandas as pd
+from gensim.models import Word2Vec
 from nltk.corpus import stopwords
 from sklearn.base import TransformerMixin
 
@@ -119,3 +120,40 @@ class MetaFeatures(TransformerMixin):
     @staticmethod
     def num_stopwords(sentence):
         return len([w for w in str(sentence).lower().split() if w in eng_stopwords])
+
+
+class Word2VecFeatures(TransformerMixin):
+    def __init__(self, model):
+        self.model = model
+        self.alpha_tokenizer = nltk.RegexpTokenizer('[A-Za-z]\w+')
+        self.lemmatizer = nltk.WordNetLemmatizer()
+        self.stop = stopwords.words('english')
+        self.NUM_FEATURES = 150
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, text_series):
+
+        vectors = []
+        for i in text_series:
+            values = self.get_feature_vec(
+                [self.lemmatizer.lemmatize(word.lower()) for word in self.alpha_tokenizer.tokenize(i) if
+                 word.lower() not in self.stop], self.NUM_FEATURES, self.model)
+            vectors.append(values)
+
+        return np.array(vectors)
+
+    @staticmethod
+    def get_feature_vec(tokens, num_features, model):
+        featureVec = np.zeros(shape=(1, num_features), dtype='float32')
+        missed = 0
+        for word in tokens:
+            try:
+                featureVec = np.add(featureVec, model[word])
+            except KeyError:
+                missed += 1
+                pass
+        if len(tokens) - missed == 0:
+            return np.zeros(shape=num_features, dtype='float32')
+        return np.divide(featureVec, len(tokens) - missed).squeeze()
