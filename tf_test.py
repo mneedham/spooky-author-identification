@@ -45,9 +45,10 @@ def bag_of_words_model(features, labels, mode):
     logits = tf.layers.dense(bow, MAX_LABEL, activation=None)
     return estimator_spec_for_softmax_classification(logits=logits, labels=labels, mode=mode)
 
+
 tf.logging.set_verbosity(tf.logging.INFO)
 
-MAX_DOCUMENT_LENGTH = 10
+MAX_DOCUMENT_LENGTH = 100
 EMBEDDING_SIZE = 50
 n_words = 0
 MAX_LABEL = 3
@@ -59,16 +60,12 @@ TEXT_COLUMN = "text"
 train_df = pd.read_csv("train.csv")
 
 X = pd.Series(train_df[TEXT_COLUMN])
-
-
 y = train_df[Y_COLUMN].copy()
 
 le = preprocessing.LabelEncoder()
 y = le.fit_transform(y)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
-
-test_df = pd.read_csv("test.csv")
 
 vocab_processor = tf.contrib.learn.preprocessing.VocabularyProcessor(MAX_DOCUMENT_LENGTH)
 
@@ -101,14 +98,31 @@ test_input_fn = tf.estimator.inputs.numpy_input_fn(
 predictions = classifier.predict(input_fn=test_input_fn)
 y_predicted = np.array(list(p['class'] for p in predictions))
 print(y_predicted)
-y_predicted = y_predicted.reshape(np.array(y_test).shape)
-
 
 # Score with sklearn.
-score = metrics.accuracy_score(y_test, y_predicted)
+score = metrics.log_loss(y_test, y_predicted)
 print('Accuracy (sklearn): {0:f}'.format(score))
 
 # Score with tensorflow.
 scores = classifier.evaluate(input_fn=test_input_fn)
 print(scores)
 print('Accuracy (tensorflow): {0:f}'.format(scores['accuracy']))
+
+
+# output
+test_df = pd.read_csv("test.csv")
+
+X_test = pd.Series(test_df[TEXT_COLUMN])
+X_test = np.array(list(vocab_processor.transform(X_test)))
+
+test_input_fn = tf.estimator.inputs.numpy_input_fn(
+    x={WORDS_FEATURE: X_test},
+    num_epochs=1,
+    shuffle=False)
+
+predictions = classifier.predict(test_input_fn)
+y_predicted = np.array(list(p['class'] for p in predictions))
+
+output = pd.DataFrame(y_predicted, columns=le.classes_)
+output["id"] = test_df["id"]
+output.to_csv("output.csv", index=False, float_format='%.6f')
