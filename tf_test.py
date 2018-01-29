@@ -5,68 +5,57 @@ from __future__ import print_function
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn import metrics
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 
+EMBEDDING_SIZE = 50
+MAX_LABEL = 3
+WORDS_FEATURE = 'words'  # Name of the input words feature.
 
-def estimator_spec_for_softmax_classification(logits, labels, mode):
-    """Returns EstimatorSpec instance for softmax classification."""
+
+def bag_of_words_model(features, labels, mode):
+    bow_column = tf.feature_column.categorical_column_with_identity(WORDS_FEATURE, num_buckets=n_words)
+    bow_embedding_column = tf.feature_column.embedding_column(bow_column, dimension=EMBEDDING_SIZE)
+    bow = tf.feature_column.input_layer(features, feature_columns=[bow_embedding_column])
+    logits = tf.layers.dense(bow, MAX_LABEL, activation=None)
+    return create_estimator_spec(logits=logits, labels=labels, mode=mode)
+
+
+def create_estimator_spec(logits, labels, mode):
     predicted_classes = tf.argmax(logits, 1)
-    # predicted_classes = logits
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(
             mode=mode,
             predictions={
-                'class': tf.nn.softmax(logits),
+                'class': predicted_classes,
                 'prob': tf.nn.softmax(logits),
                 'log_loss': tf.nn.softmax(logits),
             })
-    print("labels: {0}".format(labels))
-    print("logits: {0}".format(logits))
+
     loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
-    # print(tf.one_hot(labels, depth=MAX_LABEL), logits)
-    # loss = tf.losses.log_loss(labels=tf.one_hot(labels, depth=MAX_LABEL), predictions=logits)
     if mode == tf.estimator.ModeKeys.TRAIN:
         optimizer = tf.train.AdamOptimizer(learning_rate=0.01)
         train_op = optimizer.minimize(loss, global_step=tf.train.get_global_step())
         return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+
     eval_metric_ops = {
         'accuracy': tf.metrics.accuracy(labels=labels, predictions=predicted_classes)
     }
     return tf.estimator.EstimatorSpec(mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 
-def bag_of_words_model(features, labels, mode):
-    """A bag-of-words model. Note it disregards the word order in the text."""
-    bow_column = tf.feature_column.categorical_column_with_identity(WORDS_FEATURE, num_buckets=n_words)
-    bow_embedding_column = tf.feature_column.embedding_column(bow_column, dimension=EMBEDDING_SIZE)
-    bow = tf.feature_column.input_layer(features, feature_columns=[bow_embedding_column])
-    logits = tf.layers.dense(bow, MAX_LABEL, activation=None)
-    return estimator_spec_for_softmax_classification(logits=logits, labels=labels, mode=mode)
-
-
 tf.logging.set_verbosity(tf.logging.INFO)
-
-MAX_DOCUMENT_LENGTH = 100
-EMBEDDING_SIZE = 50
-n_words = 0
-MAX_LABEL = 3
-WORDS_FEATURE = 'words'  # Name of the input words feature.
 
 Y_COLUMN = "author"
 TEXT_COLUMN = "text"
+le = preprocessing.LabelEncoder()
 
 train_df = pd.read_csv("train.csv")
-
 X = pd.Series(train_df[TEXT_COLUMN])
-y = train_df[Y_COLUMN].copy()
-
-le = preprocessing.LabelEncoder()
-y = le.fit_transform(y)
-
+y = le.fit_transform(train_df[Y_COLUMN].copy())
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=42)
 
+MAX_DOCUMENT_LENGTH = 100
 vocab_processor = tf.contrib.learn.preprocessing.VocabularyProcessor(MAX_DOCUMENT_LENGTH)
 
 X_transform_train = vocab_processor.fit_transform(X_train)
@@ -95,19 +84,9 @@ test_input_fn = tf.estimator.inputs.numpy_input_fn(
     y=y_test,
     num_epochs=1,
     shuffle=False)
-predictions = classifier.predict(input_fn=test_input_fn)
-y_predicted = np.array(list(p['class'] for p in predictions))
-print(y_predicted)
 
-# Score with sklearn.
-score = metrics.log_loss(y_test, y_predicted)
-print('Accuracy (sklearn): {0:f}'.format(score))
-
-# Score with tensorflow.
 scores = classifier.evaluate(input_fn=test_input_fn)
-print(scores)
-print('Accuracy (tensorflow): {0:f}'.format(scores['accuracy']))
-
+print('Accuracy: {0:f}, Loss {1:f}'.format(scores['accuracy'], scores["loss"]))
 
 # output
 test_df = pd.read_csv("test.csv")
@@ -121,8 +100,8 @@ test_input_fn = tf.estimator.inputs.numpy_input_fn(
     shuffle=False)
 
 predictions = classifier.predict(test_input_fn)
-y_predicted = np.array(list(p['class'] for p in predictions))
+y_predicted_classes = np.array(list(p['prob'] for p in predictions))
 
-output = pd.DataFrame(y_predicted, columns=le.classes_)
+output = pd.DataFrame(y_predicted_classes, columns=le.classes_)
 output["id"] = test_df["id"]
 output.to_csv("output.csv", index=False, float_format='%.6f')
