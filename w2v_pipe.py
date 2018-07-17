@@ -26,20 +26,20 @@ model = Word2Vec(data, min_count=3, size=NUM_FEATURES, window=5, sg=1, alpha=1e-
 
 pipe = Pipeline([
     ('w2v', Word2VecFeatures(model)),
-    ('logreg', LogisticRegression(C=1))
+    ('logreg', LogisticRegression())
 ])
 
-pipe.fit(train.text, train.author.values)
+pipe.fit(train.text.head(10), train.author.values[0:10])
 
 # test_pipeline(train, pipe, "My pipe")
 
-probs = pipe.predict_proba(test.text)
-
-author = pd.DataFrame(probs)
-
-final = pd.DataFrame()
-final['id'] = test.id
-final['EAP'] = author[0]
-final['HPL'] = author[1]
-final['MWS'] = author[2]
-final.to_csv('submission3.csv', sep=',', index=False)
+# probs = pipe.predict_proba(test.text)
+#
+# author = pd.DataFrame(probs)
+#
+# final = pd.DataFrame()
+# final['id'] = test.id
+# final['EAP'] = author[0]
+# final['HPL'] = author[1]
+# final['MWS'] = author[2]
+# final.to_csv('submission3.csv', sep=',', index=False)

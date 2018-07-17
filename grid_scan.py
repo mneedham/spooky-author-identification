@@ -90,8 +90,8 @@ if __name__ == "__main__":
     # should do a separate grid search on each of the individual classifiers?
 
     param_grid = dict(
-        # voting__weights=combinations_on_off(len(classifiers)),
-        voting__weights=[[1, 1, 1, 1], [1, 1, 1, 0]],
+        voting__weights=combinations_on_off(len(classifiers)),
+        # voting__weights=[[1, 1, 1, 1], [1, 1, 1, 0]],
     )
     grid_search = GridSearchCV(mixed_pipe, param_grid=param_grid, n_jobs=-1, verbose=10, scoring="neg_log_loss")
 
@@ -105,9 +105,9 @@ if __name__ == "__main__":
     pprint(param_grid)
     t0 = time()
 
-    # grid_search.fit(X, y)
-    outer_cv = KFold(n_splits=4, shuffle=True, random_state=1)
-    cross_val_score(grid_search, X=X, y=y, cv=outer_cv, scoring="neg_log_loss")
+    grid_search.fit(X, y)
+    # outer_cv = KFold(n_splits=4, shuffle=True, random_state=1)
+    # cross_val_score(grid_search, X=X, y=y, cv=outer_cv, scoring="neg_log_loss")
 
     print("done in %0.3fs" % (time() - t0))
     print()

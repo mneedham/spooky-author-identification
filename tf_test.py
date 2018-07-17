@@ -21,6 +21,33 @@ def bag_of_words_model(features, labels, mode):
     return create_estimator_spec(logits=logits, labels=labels, mode=mode)
 
 
+def rnn_model(features, labels, mode):
+    """RNN model to predict from sequence of words to a class."""
+    # Convert indexes of words into embeddings.
+    # This creates embeddings matrix of [n_words, EMBEDDING_SIZE] and then
+    # maps word indexes of the sequence into [batch_size, sequence_length,
+    # EMBEDDING_SIZE].
+    word_vectors = tf.contrib.layers.embed_sequence(
+        features[WORDS_FEATURE], vocab_size=n_words, embed_dim=EMBEDDING_SIZE)
+
+    # Split into list of embedding per word, while removing doc length dim.
+    # word_list results to be a list of tensors [batch_size, EMBEDDING_SIZE].
+    word_list = tf.unstack(word_vectors, axis=1)
+
+    # Create a Gated Recurrent Unit cell with hidden size of EMBEDDING_SIZE.
+    cell = tf.nn.rnn_cell.GRUCell(EMBEDDING_SIZE)
+
+    # Create an unrolled Recurrent Neural Networks to length of
+    # MAX_DOCUMENT_LENGTH and passes word_list as inputs for each unit.
+    _, encoding = tf.nn.static_rnn(cell, word_list, dtype=tf.float32)
+
+    # Given encoding of RNN, take encoding of last step (e.g hidden size of the
+    # neural network of last step) and pass it as features for softmax
+    # classification over output classes.
+    logits = tf.layers.dense(encoding, MAX_LABEL, activation=None)
+    return create_estimator_spec(logits=logits, labels=labels, mode=mode)
+
+
 def create_estimator_spec(logits, labels, mode):
     predicted_classes = tf.argmax(logits, 1)
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -67,7 +94,7 @@ X_test = np.array(list(X_transform_test))
 n_words = len(vocab_processor.vocabulary_)
 print('Total words: %d' % n_words)
 
-model_fn = bag_of_words_model
+model_fn = rnn_model
 classifier = tf.estimator.Estimator(model_fn=model_fn)
 
 train_input_fn = tf.estimator.inputs.numpy_input_fn(

@@ -4,7 +4,6 @@ from collections import Counter, defaultdict
 import nltk
 import numpy as np
 import pandas as pd
-from gensim.models import Word2Vec
 from nltk.corpus import stopwords
 from sklearn.base import TransformerMixin
 
@@ -134,26 +133,25 @@ class Word2VecFeatures(TransformerMixin):
         return self
 
     def transform(self, text_series):
+        return np.array([self.get_feature_vec(self.generate_tokens(i), self.NUM_FEATURES, self.model)
+                         for i in text_series])
 
-        vectors = []
-        for i in text_series:
-            values = self.get_feature_vec(
-                [self.lemmatizer.lemmatize(word.lower()) for word in self.alpha_tokenizer.tokenize(i) if
-                 word.lower() not in self.stop], self.NUM_FEATURES, self.model)
-            vectors.append(values)
-
-        return np.array(vectors)
+    def generate_tokens(self, i):
+        return [self.lemmatizer.lemmatize(word.lower())
+                for word in self.alpha_tokenizer.tokenize(i)
+                if word.lower() not in self.stop]
 
     @staticmethod
     def get_feature_vec(tokens, num_features, model):
-        featureVec = np.zeros(shape=(1, num_features), dtype='float32')
+        feature_vec = np.zeros(shape=(1, num_features), dtype='float32')
         missed = 0
         for word in tokens:
             try:
-                featureVec = np.add(featureVec, model[word])
+                feature_vec = np.add(feature_vec, model[word])
             except KeyError:
                 missed += 1
                 pass
+
         if len(tokens) - missed == 0:
             return np.zeros(shape=num_features, dtype='float32')
-        return np.divide(featureVec, len(tokens) - missed).squeeze()
+        return np.divide(feature_vec, len(tokens) - missed).squeeze()

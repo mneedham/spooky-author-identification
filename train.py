@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from polyglot.text import Text
+# from polyglot.text import Text
 from sklearn import linear_model
 from sklearn.ensemble import VotingClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
@@ -51,29 +51,29 @@ pos_pipe = Pipeline([
     ("logreg", linear_model.LogisticRegression())
 ])
 
-entities = {}
-
-
-def analyze(doc):
-    if doc not in entities:
-        entities[doc] = ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
-    return entities[doc]
-
-
-nlp_pipeline = Pipeline([
-    ('cv', CountVectorizer(analyzer=analyze)),
-    ('mnb', MultinomialNB())
-])
+# entities = {}
+#
+#
+# def analyze(doc):
+#     if doc not in entities:
+#         entities[doc] = ["_".join(entity) for entity in Text(doc, hint_language_code="en").entities]
+#     return entities[doc]
+#
+#
+# nlp_pipeline = Pipeline([
+#     ('cv', CountVectorizer(analyzer=analyze)),
+#     ('mnb', MultinomialNB())
+# ])
 
 classifiers = [
     ("tfidf", tfidf_pipe),
     ("ngram", ngram_pipe),
     ("unigram", unigram_log_pipe),
-    ("nlp", nlp_pipeline)
+    # ("nlp", nlp_pipeline)
 ]
 
 mixed_pipe = Pipeline([
-    ("voting", VotingClassifier(classifiers, voting="soft", weights=[0, 1, 1, 0]))
+    ("voting", VotingClassifier(classifiers, voting="soft", weights=[0, 1, 1]))
 ])
 
 if __name__ == "__main__":
