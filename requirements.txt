@@ -46,7 +46,7 @@ preshed==1.0.0
 prompt-toolkit==1.0.15
 ptyprocess==0.5.2
 pycld2==0.31
-Pygments==2.2.0
+Pygments==2.7.4
 PyICU==1.9.8
 pyparsing==2.2.0
 python-dateutil==2.6.1
